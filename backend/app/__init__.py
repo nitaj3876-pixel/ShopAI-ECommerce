@@ -1,0 +1,1 @@
+"""ShopAI FastAPI application package."""

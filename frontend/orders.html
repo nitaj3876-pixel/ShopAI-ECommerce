@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Orders — ShopAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="container mt-4">
+  <h3 class="fw-bold mb-4">My Orders</h3>
+  <div id="orders-list"></div>
+</div>
+
+<div id="footer-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/main.js"></script>
+<script src="assets/js/chatbot.js"></script>
+<script>
+renderNavbar();
+renderFooter();
+
+const highlightId = new URLSearchParams(window.location.search).get("highlight");
+const TRACK_STAGES = ["confirmed", "shipped", "out_for_delivery", "delivered"];
+
+function orderCardHtml(o) {
+  const stageIdx = TRACK_STAGES.indexOf(o.status);
+  const isCancelled = ["cancelled", "returned", "return_requested"].includes(o.status);
+  return `
+  <div class="card-soft p-3 mb-3 ${String(o.id) === highlightId ? 'border border-primary' : ''}">
+    <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+      <div>
+        <div class="fw-bold">${o.order_number}</div>
+        <div class="small text-muted">${new Date(o.created_at).toLocaleString()}</div>
+      </div>
+      <div class="text-end">
+        <span class="status-badge status-${o.status}">${o.status.replace(/_/g, " ")}</span>
+        <div class="fw-bold mt-1">${formatCurrency(o.grand_total)}</div>
+      </div>
+    </div>
+
+    ${!isCancelled ? `
+    <div class="d-flex justify-content-between small text-muted my-3">
+      ${TRACK_STAGES.map((s, i) => `<span class="${i <= stageIdx ? 'text-success fw-semibold' : ''}">${s.replace(/_/g, " ")}</span>`).join("→")}
+    </div>` : ""}
+
+    <div class="order-products mb-3">
+      ${o.items.map(i => `
+        <a class="order-product-row" href="product_details.html?id=${i.product_id}">
+          <img src="${firstImage(i.product_image_urls)}" alt="${i.product_name}">
+          <div class="flex-grow-1">
+            <div class="fw-semibold">${i.product_name}</div>
+            <div class="small text-muted">Quantity: ${i.quantity} · ${formatCurrency(i.unit_price)} each</div>
+          </div>
+          <div class="fw-semibold">${formatCurrency(i.unit_price * i.quantity)}</div>
+        </a>`).join("")}
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-sm btn-outline-brand" href="${(window.SHOPAI_API_BASE || 'http://localhost:8000')}/api/orders/${o.id}/invoice" target="_blank" onclick="return withAuthLink(event, this)">Download Invoice</a>
+      ${!["cancelled","delivered","returned","return_requested"].includes(o.status) ? `<button class="btn btn-sm btn-outline-danger" onclick="cancel(${o.id})">Cancel Order</button>` : ""}
+      ${o.status === "delivered" ? `<button class="btn btn-sm btn-outline-brand" onclick="returnOrder(${o.id})">Return Request</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function withAuthLink(e, el) {
+  // Simple approach: fetch with auth header then open as blob, since the invoice endpoint requires a JWT.
+  e.preventDefault();
+  fetch(el.href, { headers: { Authorization: `Bearer ${Api.token()}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "invoice.txt";
+      a.click();
+    })
+    .catch(() => toast("Could not download invoice", true));
+  return false;
+}
+
+async function loadOrders() {
+  if (!requireLogin("Please log in to view your orders")) return;
+  try {
+    const orders = await Api.myOrders();
+    const el = document.getElementById("orders-list");
+    if (!orders.length) {
+      el.innerHTML = `<div class="card-soft p-5 text-center text-muted">No orders yet. <a href="products.html">Start shopping →</a></div>`;
+      return;
+    }
+    el.innerHTML = orders.map(orderCardHtml).join("");
+  } catch (e) { toast(e.message, true); }
+}
+
+async function cancel(orderId) {
+  if (!confirm("Cancel this order?")) return;
+  try {
+    await Api.cancelOrder(orderId);
+    toast("Order cancelled");
+    loadOrders();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function returnOrder(orderId) {
+  if (!confirm("Request a return for this order?")) return;
+  try {
+    await Api.returnOrder(orderId);
+    toast("Return requested");
+    loadOrders();
+  } catch (e) { toast(e.message, true); }
+}
+
+loadOrders();
+</script>
+</body>
+</html>

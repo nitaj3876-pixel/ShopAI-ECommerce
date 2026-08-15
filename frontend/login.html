@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — ShopAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="container">
+  <div class="card-soft auth-card">
+    <h3 class="fw-bold mb-1">Welcome back</h3>
+    <p class="text-muted mb-4">Log in to continue to ShopAI</p>
+    <div id="login-error" class="alert alert-danger d-none"></div>
+    <form id="login-form">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Email</label>
+        <input type="email" class="form-control" id="email" required>
+      </div>
+      <div class="mb-2">
+        <label class="form-label small fw-semibold">Password</label>
+        <input type="password" class="form-control" id="password" required>
+      </div>
+      <div class="text-end mb-3">
+        <a href="forgot_password.html" class="small">Forgot password?</a>
+      </div>
+      <button type="submit" class="btn btn-brand w-100">Log In</button>
+    </form>
+    <p class="text-center mt-4 mb-0 small">New here? <a href="register.html">Create an account</a></p>
+  </div>
+</div>
+
+<div id="footer-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/main.js"></script>
+<script src="assets/js/chatbot.js"></script>
+<script>
+renderNavbar();
+renderFooter();
+
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById("login-error");
+  errorBox.classList.add("d-none");
+  try {
+    const res = await Api.login({
+      email: document.getElementById("email").value,
+      password: document.getElementById("password").value,
+    });
+    Api.setToken(res.access_token);
+    Api.setUser(res.user);
+    toast(`Welcome back, ${res.user.name.split(" ")[0]}!`);
+    setTimeout(() => (window.location.href = res.user.is_admin ? "admin.html" : "index.html"), 500);
+  } catch (err) {
+    errorBox.textContent = err.message;
+    errorBox.classList.remove("d-none");
+  }
+});
+</script>
+</body>
+</html>

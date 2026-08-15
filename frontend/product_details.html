@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Details — ShopAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .zoom-wrap { overflow: hidden; border-radius: var(--radius); cursor: zoom-in; }
+  .zoom-wrap img { transition: transform .3s ease; width: 100%; aspect-ratio: 1/1; object-fit: cover; }
+  .zoom-wrap:hover img { transform: scale(1.4); }
+  .thumb { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }
+  .thumb.active { border-color: var(--primary); }
+</style>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="container mt-4" id="product-container">
+  <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+</div>
+
+<div class="container mt-5" id="similar-section" style="display:none">
+  <div class="section-title">Similar Products</div>
+  <div class="row g-3" id="similar-list"></div>
+</div>
+
+<div class="container mt-5" id="fbt-section" style="display:none">
+  <div class="section-title">Frequently Bought Together</div>
+  <div class="row g-3" id="fbt-list"></div>
+</div>
+
+<div id="footer-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/main.js"></script>
+<script src="assets/js/chatbot.js"></script>
+<script>
+renderNavbar();
+renderFooter();
+
+const productId = new URLSearchParams(window.location.search).get("id");
+
+function setMainImage(url, el) {
+  document.getElementById("main-image").src = url;
+  document.querySelectorAll(".thumb").forEach(t => t.classList.remove("active"));
+  if (el) el.classList.add("active");
+}
+
+async function loadProduct() {
+  if (!productId) {
+    document.getElementById("product-container").innerHTML = `<div class="alert alert-warning">No product specified.</div>`;
+    return;
+  }
+  try {
+    const cached = sessionStorage.getItem(`shopai_product_${productId}`);
+    const p = cached ? JSON.parse(cached) : await Api.getProduct(productId);
+    renderProduct(p);
+  } catch (err) {
+    document.getElementById("product-container").innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+function renderProduct(p) {
+    const images = (p.image_urls || "").split(",").map(url => {
+      const source = firstImage(url.trim());
+      // Refresh a previously failed browser image request after an admin updates an image.
+      return source.startsWith(API_BASE) ? `${source}?product=${p.id}` : source;
+    });
+    let specsHtml = "";
+    if (p.specifications) {
+      specsHtml = p.specifications.split("|").map(s => `<li>${s.trim()}</li>`).join("");
+    }
+
+    document.getElementById("product-container").innerHTML = `
+      <div class="row g-4">
+        <div class="col-md-5">
+          <div class="zoom-wrap card-soft">
+            <img id="main-image" src="${images[0]}" alt="${p.name}">
+          </div>
+          <div class="d-flex gap-2 mt-2 flex-wrap">
+            ${images.map((img, i) => `<img class="thumb ${i === 0 ? 'active' : ''}" src="${img}" onclick="setMainImage('${img}', this)">`).join("")}
+          </div>
+        </div>
+        <div class="col-md-7">
+          <div class="small text-muted">${p.brand || ""} · Sold by ${p.seller_name}</div>
+          <h3 class="fw-bold">${p.name}</h3>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="rating-pill">${p.rating_avg?.toFixed(1) || "New"} ★</span>
+            <span class="small text-muted">${p.rating_count} ratings</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <span class="fs-3 fw-bold">${formatCurrency(p.price)}</span>
+            ${p.discount_percent > 0 ? `<span class="mrp fs-5">${formatCurrency(p.mrp)}</span><span class="discount fs-6">${p.discount_percent}% off</span>` : ""}
+          </div>
+          <div class="mb-3">
+            ${p.stock > 0 ? `<span class="text-success fw-semibold">In Stock</span> (${p.stock} available)` : `<span class="text-danger fw-semibold">Out of Stock</span>`}
+          </div>
+          <p class="text-muted">${p.description}</p>
+          ${specsHtml ? `<h6 class="fw-bold mt-3">Specifications</h6><ul class="small text-muted">${specsHtml}</ul>` : ""}
+
+          <div class="d-flex gap-2 mt-4">
+            <div class="qty-control">
+              <button onclick="changeQty(-1)">−</button>
+              <span id="qty-value">1</span>
+              <button onclick="changeQty(1)">+</button>
+            </div>
+            <button class="btn btn-brand flex-grow-1" onclick="addToCartDetail(${p.id})" ${p.stock === 0 ? "disabled" : ""}>Add to Cart</button>
+            <button class="btn btn-accent flex-grow-1" onclick="buyNow(${p.id})" ${p.stock === 0 ? "disabled" : ""}>Buy Now</button>
+            <button class="btn btn-outline-brand" onclick="addWishlistDetail(${p.id})" title="Wishlist">♡</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <h5 class="fw-bold mb-3">Ratings & Reviews</h5>
+        <div id="review-form-area" class="card-soft p-3 mb-3"></div>
+        <div id="reviews-list"></div>
+      </div>
+    `;
+
+    loadReviewForm();
+    loadReviews();
+    loadSimilar();
+    loadFbt();
+}
+
+let qty = 1;
+function changeQty(delta) {
+  qty = Math.max(1, qty + delta);
+  document.getElementById("qty-value").textContent = qty;
+}
+
+async function addToCartDetail(id) {
+  if (!requireLogin()) return;
+  try {
+    await Api.addToCart(id, qty);
+    window.location.href = "cart.html";
+  } catch (e) { toast(e.message, true); }
+}
+
+async function buyNow(id) {
+  if (!requireLogin()) return;
+  try {
+    await Api.addToCart(id, qty);
+    window.location.href = "cart.html";
+  } catch (e) { toast(e.message, true); }
+}
+
+async function addWishlistDetail(id) {
+  if (!requireLogin()) return;
+  try {
+    await Api.addToWishlist(id);
+    toast("Added to wishlist!");
+    updateBadges();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadReviewForm() {
+  const area = document.getElementById("review-form-area");
+  if (!Api.isLoggedIn()) {
+    area.innerHTML = `<div class="small text-muted">Log in to write a review.</div>`;
+    return;
+  }
+  try {
+    const reviews = await Api.productReviews(productId);
+    if (reviews.some(review => Number(review.user_id) === Number(Api.currentUser()?.id))) {
+      area.innerHTML = `<div class="small text-success fw-semibold">✓ Your review has been submitted for this product.</div>`;
+      return;
+    }
+  } catch (_) { /* Keep the review form available if the read request fails. */ }
+  area.innerHTML = `
+    <h6 class="fw-semibold">Write a review</h6>
+    <form id="review-form" class="row g-2">
+      <div class="col-md-2">
+        <select class="form-select form-select-sm" id="review-rating">
+          ${[5,4,3,2,1].map(r => `<option value="${r}">${r} ★</option>`).join("")}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <input class="form-control form-control-sm" id="review-title" placeholder="Title (optional)">
+      </div>
+      <div class="col-md-4">
+        <input class="form-control form-control-sm" id="review-comment" placeholder="Your review">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-brand btn-sm w-100">Submit</button>
+      </div>
+    </form>`;
+  document.getElementById("review-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await Api.createReview({
+        product_id: parseInt(productId),
+        rating: parseInt(document.getElementById("review-rating").value),
+        title: document.getElementById("review-title").value,
+        comment: document.getElementById("review-comment").value,
+      });
+      toast("Review submitted!");
+      e.target.reset();
+      loadReviews();
+      loadReviewForm();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+async function loadReviews() {
+  try {
+    const reviews = await Api.productReviews(productId);
+    const el = document.getElementById("reviews-list");
+    if (!reviews.length) {
+      el.innerHTML = `<div class="text-muted small">No reviews yet — be the first!</div>`;
+      return;
+    }
+    el.innerHTML = reviews.map(r => `
+      <div class="card-soft p-3 mb-2">
+        <div class="d-flex justify-content-between">
+          <span class="rating-pill">${r.rating} ★</span>
+          <span class="small text-muted">${new Date(r.created_at).toLocaleDateString()}</span>
+        </div>
+        ${r.title ? `<div class="fw-semibold mt-2">${r.title}</div>` : ""}
+        <div class="small text-muted">${r.comment || ""}</div>
+      </div>`).join("");
+  } catch (e) { console.error(e); }
+}
+
+async function loadSimilar() {
+  try {
+    const items = await Api.similarProducts(productId);
+    if (items.length) {
+      document.getElementById("similar-section").style.display = "block";
+      renderProductGrid("similar-list", items);
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function loadFbt() {
+  try {
+    const items = await Api.frequentlyBoughtTogether(productId);
+    if (items.length) {
+      document.getElementById("fbt-section").style.display = "block";
+      renderProductGrid("fbt-list", items);
+    }
+  } catch (e) { console.error(e); }
+}
+
+loadProduct();
+</script>
+</body>
+</html>

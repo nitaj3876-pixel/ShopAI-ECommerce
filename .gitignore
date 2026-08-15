@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+venv/
+.venv/
+**/venv/
+**/.venv/
+.env
+**/.env
+/Lib/
+/Scripts/
+/pyvenv.cfg
+*.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+.DS_Store
+node_modules/
