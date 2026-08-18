@@ -49,6 +49,8 @@ function doLogout(e) {
   setTimeout(() => (window.location.href = "index.html"), 500);
 }
 
+window.addEventListener("shopai:auth-changed", () => renderNavbar());
+
 async function updateBadges() {
   if (!Api.isLoggedIn()) return;
   try {

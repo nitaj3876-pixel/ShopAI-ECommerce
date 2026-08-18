@@ -15,6 +15,7 @@ const Api = {
   clearToken() {
     localStorage.removeItem("shopai_token");
     localStorage.removeItem("shopai_user");
+    window.dispatchEvent(new Event("shopai:auth-changed"));
   },
   currentUser() {
     const raw = localStorage.getItem("shopai_user");
@@ -87,7 +88,19 @@ const Api = {
 
   // ---- Products ----
   listProducts: (query) => Api.request("/api/products", { query }),
-  getProduct: (id) => Api.request(`/api/products/${id}`, { auth: Api.isLoggedIn() }),
+  async getProduct(id) {
+    try {
+      return await Api.request(`/api/products/${id}`, { auth: Api.isLoggedIn() });
+    } catch (error) {
+      // Product pages are public. A token can become invalid after a backend
+      // redeploy, so discard it and retry the request anonymously.
+      if (Api.isLoggedIn() && error.message === "Could not validate credentials") {
+        Api.clearToken();
+        return Api.request(`/api/products/${id}`);
+      }
+      throw error;
+    }
+  },
   similarProducts: (id) => Api.request(`/api/products/${id}/similar`),
   productReviews: (id) => Api.request(`/api/products/${id}/reviews`),
   listCategories: () => Api.request("/api/categories"),
