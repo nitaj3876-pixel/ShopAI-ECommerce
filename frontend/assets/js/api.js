@@ -1,5 +1,9 @@
-// Central API client. Change API_BASE if your backend runs elsewhere.
-const API_BASE = window.SHOPAI_API_BASE || "https://shopai-ecommerce.onrender.com";
+// Central API client. Local pages should use the local FastAPI server; the
+// hosted API is only the default for a deployed storefront.
+const isLocalStorefront = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const API_BASE = window.SHOPAI_API_BASE || (
+  isLocalStorefront ? "http://127.0.0.1:8000" : "https://shopai-ecommerce.onrender.com"
+);
 
 const Api = {
   token() {

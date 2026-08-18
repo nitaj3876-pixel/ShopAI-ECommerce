@@ -45,6 +45,11 @@ def ensure_bootstrap_admin() -> None:
 
 ensure_bootstrap_admin()
 
+# A fresh Render database has no rows. Add a visible starter catalog on first
+# boot so a deployment works without paid Shell access or a manual seed command.
+from app.starter_catalog import ensure_starter_catalog
+ensure_starter_catalog()
+
 app = FastAPI(
     title="ShopAI — AI-Powered E-Commerce API",
     description="A full-featured e-commerce backend with JWT auth, AI recommendations, and an AI shopping assistant.",
