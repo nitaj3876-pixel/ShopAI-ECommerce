@@ -28,35 +28,64 @@ STARTER_PRODUCTS = [
     ("SonicWave Bluetooth Speaker", "electronics", "SonicWave", 2299, 2999, 18, True, False, True, True),
 ]
 
+STARTER_PRODUCT_IMAGES = {
+    "nova-x5-smartphone": "nova-x5-smartphone.jpg",
+    "pulse-wireless-earbuds": "pulse-wireless-earbuds.jpg",
+    "voltedge-power-bank-20000mah": "voltedge-power-bank.jpg",
+    "urbanova-casual-sneakers": "urbanova-sneakers.jpg",
+    "trendsetter-slim-fit-jeans": "trendsetter-jeans.jpg",
+    "crafthome-air-fryer-4l": "crafthome-air-fryer.jpg",
+    "econest-steel-water-bottle": "econest-water-bottle.jpg",
+    "glowup-vitamin-c-face-serum": "glowup-serum.jpg",
+    "purelife-spf-50-sunscreen": "purelife-sunscreen.jpg",
+    "maxfit-premium-yoga-mat": "maxfit-yoga-mat.jpg",
+    "primegear-adjustable-dumbbells": "primegear-dumbbells.jpg",
+    "sonicwave-bluetooth-speaker": "sonicwave-speaker.jpg",
+}
+
 
 def _slugify(name: str) -> str:
     return "-".join(name.lower().replace("&", "and").split())
 
 
+def _product_image_url(slug: str) -> str:
+    return f"/uploads/products/{STARTER_PRODUCT_IMAGES[slug]}"
+
+
 def ensure_starter_catalog() -> None:
-    """Populate only a completely empty catalog; never overwrite store data."""
+    """Populate an empty catalog and replace only old starter placeholder URLs."""
     db = SessionLocal()
     try:
-        if db.query(models.Product).filter(models.Product.is_active.is_(True)).first():
-            return
+        is_empty_catalog = not db.query(models.Product).filter(
+            models.Product.is_active.is_(True)
+        ).first()
 
         categories = {}
         for name, slug in STARTER_CATEGORIES:
             category = db.query(models.Category).filter(models.Category.slug == slug).first()
-            if not category:
+            local_image_url = f"/uploads/products/categories/{slug}-category.jpg"
+            if not category and is_empty_catalog:
                 category = models.Category(
                     name=name,
                     slug=slug,
-                    image_url=f"https://picsum.photos/seed/category-{slug}/300/300",
+                    image_url=local_image_url,
                 )
                 db.add(category)
                 db.flush()
-            categories[slug] = category
+            elif category and (category.image_url or "").startswith("https://picsum.photos/"):
+                category.image_url = local_image_url
+            if category:
+                categories[slug] = category
 
         for index, item in enumerate(STARTER_PRODUCTS, start=1):
             name, category_slug, brand, price, mrp, stock, featured, bestseller, trending, flash_sale = item
             slug = _slugify(name)
-            if db.query(models.Product).filter(models.Product.slug == slug).first():
+            existing_product = db.query(models.Product).filter(models.Product.slug == slug).first()
+            if existing_product:
+                if (existing_product.image_urls or "").startswith("https://picsum.photos/"):
+                    existing_product.image_urls = _product_image_url(slug)
+                continue
+            if not is_empty_catalog:
                 continue
             db.add(models.Product(
                 name=name,
@@ -67,7 +96,7 @@ def ensure_starter_catalog() -> None:
                 price=price,
                 mrp=mrp,
                 stock=stock,
-                image_urls=f"https://picsum.photos/seed/{slug}/600/600",
+                image_urls=_product_image_url(slug),
                 rating_avg=round(4.0 + (index % 10) / 10, 1),
                 rating_count=12 + index,
                 is_featured=featured,
