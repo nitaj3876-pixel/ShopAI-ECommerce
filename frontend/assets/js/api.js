@@ -1,5 +1,5 @@
 // Central API client. Change API_BASE if your backend runs elsewhere.
-const API_BASE = window.SHOPAI_API_BASE || "http://localhost:8000";
+const API_BASE = window.SHOPAI_API_BASE || "https://shopai-ecommerce.onrender.com";
 
 const Api = {
   token() {
